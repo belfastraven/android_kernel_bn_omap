@@ -25,7 +25,6 @@
 #define HUMMINGBIRD_PVT			0x5
 
 int hummingbird_touch_init(void);
-int hummingbird_sensor_init(void);
 void omap4_create_board_props(void);
 int hummingbird_panel_init(void);
 int hummingbird_button_init(void);

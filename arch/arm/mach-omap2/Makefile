@@ -278,6 +278,20 @@ obj-$(CONFIG_MACH_OMAP_BLAZE)		+= board-44xx-tablet.o \
 
 obj-$(CONFIG_MACH_OMAP4_PANDA)		+= board-omap4panda.o
 
+obj-$(CONFIG_MACH_OMAP_OVATION)		+= board-ovation.o \
+					   board-ovation-touch.o \
+					   board-ovation-panel.o \
+					   board-ovation-buttons.o \
+					   board-bn-power.o \
+					   board-bn-wifi.o
+
+obj-$(CONFIG_MACH_OMAP_HUMMINGBIRD)	+= board-hummingbird.o \
+					   board-hummingbird-touch.o \
+					   board-hummingbird-panel.o \
+					   board-hummingbird-buttons.o \
+					   board-bn-power.o \
+					   board-bn-wifi.o
+
 obj-$(CONFIG_MACH_PCM049)		+= board-omap4pcm049.o
 
 obj-$(CONFIG_MACH_OMAP3517EVM)		+= board-am3517evm.o

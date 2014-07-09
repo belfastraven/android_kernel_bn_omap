@@ -609,7 +609,6 @@ static void __init omap_hummingbird_init(void)
 	bn_wilink_init();
 
 	omap4_twl6030_hsmmc_init(mmc);
-	hummingbird_sensor_init();
 	usb_musb_init(&musb_board_data);
 
 	omap_enable_smartreflex_on_init();
