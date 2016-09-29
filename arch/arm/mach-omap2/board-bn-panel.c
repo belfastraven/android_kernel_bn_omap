@@ -414,7 +414,8 @@ static struct dsscomp_platform_data dsscomp_config = {
 
 static struct sgx_omaplfb_config omaplfb_config[] = {
 	{
-		.vram_buffers = 4,
+		.vram_buffers = machine_is_omap_hummingbird() ? 0 : 2,
+		.tiler2d_buffers = machine_is_omap_ovation() ? 0 : 2,
 		.swap_chain_length = 2,
 	},
 #if defined(CONFIG_OMAP4_DSS_HDMI)
