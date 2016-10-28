@@ -400,26 +400,22 @@ config MACH_OMAP_BN
 config MACH_OMAP_BN_HD
 	bool "OMAP4 B&N HD boards"
 	select MACH_OMAP_BN
+	select OMAP_PACKAGE_CBL
+	select OMAP_PACKAGE_CBS
+	select KEYBOARD_GPIO
+	select HWMON
+	select OMAP_REBOOT_REASON
+
+choice
+	prompt "B&N Nook HD board type" if MACH_OMAP_BN_HD
+	default MACH_OMAP_OVATION
 
 config MACH_OMAP_OVATION
 	bool "OMAP 44xx Ovation Board"
-	default n
-	select MACH_OMAP_BN_HD
-	select OMAP_PACKAGE_CBL
-	select OMAP_PACKAGE_CBS
-	select KEYBOARD_GPIO
-	select HWMON
-	select OMAP_REBOOT_REASON
 
 config MACH_OMAP_HUMMINGBIRD
 	bool "OMAP 44xx Hummingbird Board"
-	default n
-	select MACH_OMAP_BN_HD
-	select OMAP_PACKAGE_CBL
-	select OMAP_PACKAGE_CBS
-	select KEYBOARD_GPIO
-	select HWMON
-	select OMAP_REBOOT_REASON
+endchoice
 
 config MACH_OMAP5_SEVM
 	bool "OMAP5 EVM board"
