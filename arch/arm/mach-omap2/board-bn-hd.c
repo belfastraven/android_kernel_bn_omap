@@ -252,7 +252,6 @@ struct kxtf9_platform_data kxtf9_platform_data = {
 static struct i2c_board_info __initdata kxtf9_i2c_boardinfo = {
 	I2C_BOARD_INFO("kxtf9", 0xe),
 	.platform_data = &kxtf9_platform_data,
-	.irq = OMAP_GPIO_IRQ(KXTJ9_GPIO_IRQ),
 };
 #endif
 
@@ -314,6 +313,7 @@ static int __init omap4_i2c_init(void)
 		kxtf9_i2c_boardinfo.addr = 0xf;
 	}
 #endif
+	kxtf9_i2c_boardinfo.irq = gpio_to_irq(KXTJ9_GPIO_IRQ);
 	i2c_register_board_info(1, &kxtf9_i2c_boardinfo, 1);
 #endif
 

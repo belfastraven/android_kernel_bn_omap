@@ -194,13 +194,13 @@ static struct ft5x06_ts_platform_data ft5x06_platform_data = {
 static struct i2c_board_info __initdata ft5x06_i2c_boardinfo = {
 	I2C_BOARD_INFO("ft5x06_ts", 0x70 >> 1),
 	.platform_data = &ft5x06_platform_data,
-	.irq = OMAP_GPIO_IRQ(TOUCHPANEL_GPIO_IRQ),
 };
 
 int __init bn_touch_init(void)
 {
 	printk(KERN_INFO "%s: Registering touch controller device\n", __func__);
 
+	ft5x06_i2c_boardinfo.irq = gpio_to_irq(TOUCHPANEL_GPIO_IRQ);
 	i2c_register_board_info(3, &ft5x06_i2c_boardinfo, 1);
 
 	return 0;
