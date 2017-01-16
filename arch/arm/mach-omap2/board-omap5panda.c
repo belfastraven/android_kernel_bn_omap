@@ -46,7 +46,6 @@
 #include <plat/omap_apps_brd_id.h>
 #include <plat/remoteproc.h>
 #include <plat/rpmsg_resmgr.h>
-#include <plat/vram.h>
 #include "hsmmc.h"
 #include "common-board-devices.h"
 #include "mux.h"
@@ -63,8 +62,6 @@
 #include <plat/sgx_omaplfb.h>
 #include <plat/android-display.h>
 
-
-#define OMAP5_SEVM_FB_RAM_SIZE       (SZ_16M + SZ_4M) /* 1280×800*4 * 2 */
 
 #define GPIO_ETH_NRESET		79	/* USBB3 to SMSC LAN9730 */
 #define GPIO_HUB_NRESET		80	/* USBB2 to SMSC 3530 HUB */
@@ -1090,7 +1087,6 @@ static struct omapfb_platform_data panda_fb_pdata = {
 static void __init omap5panda_display_init(void)
 {
 	omapfb_set_platform_data(&panda_fb_pdata);
-	omap_vram_set_sdram_vram(OMAP5_SEVM_FB_RAM_SIZE, 0);
 
 	i2c_register_board_info(0, hdmi_i2c_eeprom,
 			ARRAY_SIZE(hdmi_i2c_eeprom));
