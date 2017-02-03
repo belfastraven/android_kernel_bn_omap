@@ -267,12 +267,6 @@ static struct i2c_board_info __initdata kxtj9_i2c_boardinfo = {
 };
 #endif
 
-static void __init bn_pmic_mux_init(void)
-{
-	omap_mux_init_signal("sys_nirq1", OMAP_PIN_INPUT_PULLUP |
-						OMAP_WAKEUP_EN);
-}
-
 static void __init omap_i2c_hwspinlock_init(int bus_id, int spinlock_id,
 				struct omap_i2c_bus_board_data *pdata)
 {
@@ -370,6 +364,8 @@ module_param(enable_suspend_off, bool, S_IRUSR | S_IRGRP | S_IROTH);
 #ifdef CONFIG_OMAP_MUX
 static struct omap_board_mux board_mux[] __initdata = {
 	OMAP4_MUX(USBB2_ULPITLL_CLK, OMAP_MUX_MODE3 | OMAP_PIN_OUTPUT),
+	OMAP4_MUX(SYS_NIRQ1, OMAP_MUX_MODE0 | OMAP_PIN_INPUT_PULLUP |
+				OMAP_WAKEUP_EN),
 	{ .reg_offset = OMAP_MUX_TERMINATOR },
 };
 #else
@@ -824,7 +820,6 @@ static void __init omap_bn_init(void)
 	bn_touch_init();
 	bn_panel_init();
 	bn_button_init();
-	bn_pmic_mux_init();
 #ifdef CONFIG_INPUT_KXTJ9
 	kxtj9_dev_init();
 #endif
