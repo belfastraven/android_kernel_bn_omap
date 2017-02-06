@@ -36,6 +36,7 @@
 #define TOUCHPANEL_GPIO_IRQ     37
 #define TOUCHPANEL_GPIO_RESET   39
 
+#if 0
 int Vdd_LCD_CT_PEN_request_supply(struct device *dev, const char *supply_name);
 int Vdd_LCD_CT_PEN_enable(struct device *dev, const char *supply_name);
 int Vdd_LCD_CT_PEN_disable(struct device *dev, const char *supply_name);
