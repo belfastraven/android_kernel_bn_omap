@@ -18,6 +18,18 @@
 #include <linux/leds.h>
 #include <linux/leds_pwm.h>
 
+#if defined(CONFIG_TOUCHSCREEN_FT5X06) || defined(CONFIG_TOUCHSCREEN_FT5X06_MODULE)
+#include <linux/input/ft5x06_ts.h>
+#include <linux/interrupt.h>
+#include <linux/gpio.h>
+#include <linux/i2c.h>
+
+#include <asm/mach-types.h>
+
+#define TOUCHPANEL_GPIO_IRQ     37
+#define TOUCHPANEL_GPIO_RESET   39
+#endif
+
 #include <plat/omap4-keypad.h>
 
 #include "board-bn-hd.h"
@@ -147,3 +159,52 @@ int __init bn_button_init(void)
 
 	return 0;
 }
+
+#if defined(CONFIG_TOUCHSCREEN_FT5X06) || defined(CONFIG_TOUCHSCREEN_FT5X06_MODULE)
+static struct ft5x06_ts_platform_data ft5x06_platform_data = {
+	.irqflags			= IRQF_TRIGGER_FALLING,
+	.irq_gpio			= TOUCHPANEL_GPIO_IRQ,
+	.irq_gpio_flags		= GPIOF_IN,
+	.reset_gpio			= TOUCHPANEL_GPIO_RESET,
+	.reset_gpio_flags	= GPIOF_OUT_INIT_LOW,
+	.x_max				= machine_is_omap_ovation() ? 1920 : 900,
+	.y_max				= machine_is_omap_ovation() ? 1280 : 1440,
+	.flags				= machine_is_omap_ovation() ?
+						  REVERSE_X_FLAG | REVERSE_Y_FLAG : 0,
+	.ignore_id_check	= true,
+#if 0 // AM: old pdata left here mostly for reference
+	.power_init			= touch_power_init,
+	.power_on			= touch_power_on,
+	.max_tx_lines		= machine_is_omap_ovation() ? 38 : 32,
+	.max_rx_lines		= machine_is_omap_ovation() ? 26 : 20,
+	.maxx				= machine_is_omap_ovation() ? 1280 : 900,
+	.maxy				= machine_is_omap_ovation() ? 1280 : 1440,
+	.use_st				= FT_USE_ST,
+	.use_mt				= FT_USE_MT,
+	.use_trk_id			= FT_USE_TRACKING_ID,
+	.use_sleep			= FT_USE_SLEEP,
+	.use_gestures		= 1,
+	.request_resources	= bn_touch_request_resources,
+	.release_resources	= bn_touch_release_resources,
+	.power_on			= bn_touch_power_on,
+	.power_off			= bn_touch_power_off,
+#endif
+};
+
+static struct i2c_board_info __initdata ft5x06_i2c_boardinfo = {
+	I2C_BOARD_INFO("ft5x06_ts", 0x70 >> 1),
+	.platform_data = &ft5x06_platform_data,
+	.irq = OMAP_GPIO_IRQ(TOUCHPANEL_GPIO_IRQ),
+};
+
+int __init bn_touch_init(void)
+{
+	printk(KERN_INFO "%s: Registering touch controller device\n", __func__);
+
+	i2c_register_board_info(3, &ft5x06_i2c_boardinfo, 1);
+
+	return 0;
+}
+#else
+#define bn_touch_init()		(0)
+#endif
