@@ -130,14 +130,13 @@ static struct omap2_hsmmc_info bn_mmc[] = {
 		.gpio_wp	= -EINVAL,
 		.nonremovable   = true,
 		.ocr_mask	= MMC_VDD_29_30,
-		.built_in	= 1,
 		.no_off_init	= true,
 	},
 	{
 		.mmc		= 1,
 		.caps		= MMC_CAP_4_BIT_DATA | MMC_CAP_1_8V_DDR,
 		.gpio_wp	= -EINVAL,
-		.gpio_cd	= 0,
+		.gpio_cd	= -EINVAL,
 	},
 	{
 		.mmc		= 3,
