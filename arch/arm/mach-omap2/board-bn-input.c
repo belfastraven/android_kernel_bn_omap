@@ -206,5 +206,5 @@ int __init bn_touch_init(void)
 	return 0;
 }
 #else
-#define bn_touch_init()		(0)
+inline int __init bn_touch_init(void) { return 0; }
 #endif
