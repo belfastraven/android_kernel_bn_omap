@@ -87,6 +87,7 @@ struct kxtj9_data {
 #ifdef CONFIG_INPUT_KXTJ9_POLLED_MODE
 	struct input_polled_dev *poll_dev;
 #endif
+	atomic_t enabled;
 	unsigned int last_poll_interval;
 	u8 shift;
 	u8 ctrl_reg1;
@@ -228,44 +229,46 @@ static int kxtj9_enable(struct kxtj9_data *tj9)
 {
 	int err;
 
-	err = kxtj9_device_power_on(tj9);
-	if (err < 0)
-		return err;
-
-	/* ensure that PC1 is cleared before updating control registers */
-	err = i2c_smbus_write_byte_data(tj9->client, CTRL_REG1, 0);
-	if (err < 0)
-		return err;
-
-	/* only write INT_CTRL_REG1 if in irq mode */
-	if (tj9->client->irq) {
-		err = i2c_smbus_write_byte_data(tj9->client,
-						INT_CTRL1, tj9->int_ctrl);
+	if (!atomic_cmpxchg(&tj9->enabled, 0, 1)) {
+		err = kxtj9_device_power_on(tj9);
 		if (err < 0)
 			return err;
-	}
 
-	err = kxtj9_update_g_range(tj9, tj9->pdata.g_range);
-	if (err < 0)
-		return err;
+		/* ensure that PC1 is cleared before updating control registers */
+		err = i2c_smbus_write_byte_data(tj9->client, CTRL_REG1, 0);
+		if (err < 0)
+			return err;
 
-	/* turn on outputs */
-	tj9->ctrl_reg1 |= PC1_ON;
-	err = i2c_smbus_write_byte_data(tj9->client, CTRL_REG1, tj9->ctrl_reg1);
-	if (err < 0)
-		return err;
+		/* only write INT_CTRL_REG1 if in irq mode */
+		if (tj9->client->irq) {
+			err = i2c_smbus_write_byte_data(tj9->client,
+							INT_CTRL1, tj9->int_ctrl);
+			if (err < 0)
+				return err;
+		}
 
-	err = kxtj9_update_odr(tj9, tj9->last_poll_interval);
-	if (err < 0)
-		return err;
+		err = kxtj9_update_g_range(tj9, tj9->pdata.g_range);
+		if (err < 0)
+			return err;
 
-	/* clear initial interrupt if in irq mode */
-	if (tj9->client->irq) {
-		err = i2c_smbus_read_byte_data(tj9->client, INT_REL);
-		if (err < 0) {
-			dev_err(&tj9->client->dev,
-				"error clearing interrupt: %d\n", err);
-			goto fail;
+		/* turn on outputs */
+		tj9->ctrl_reg1 |= PC1_ON;
+		err = i2c_smbus_write_byte_data(tj9->client, CTRL_REG1, tj9->ctrl_reg1);
+		if (err < 0)
+			return err;
+
+		err = kxtj9_update_odr(tj9, tj9->last_poll_interval);
+		if (err < 0)
+			return err;
+
+		/* clear initial interrupt if in irq mode */
+		if (tj9->client->irq) {
+			err = i2c_smbus_read_byte_data(tj9->client, INT_REL);
+			if (err < 0) {
+				dev_err(&tj9->client->dev,
+					"error clearing interrupt: %d\n", err);
+				goto fail;
+			}
 		}
 	}
 
@@ -273,12 +276,15 @@ static int kxtj9_enable(struct kxtj9_data *tj9)
 
 fail:
 	kxtj9_device_power_off(tj9);
+	atomic_set(&tj9->enabled, 0);
 	return err;
 }
 
 static void kxtj9_disable(struct kxtj9_data *tj9)
 {
-	kxtj9_device_power_off(tj9);
+	if (atomic_cmpxchg(&tj9->enabled, 1, 0)) {
+		kxtj9_device_power_off(tj9);
+	}
 }
 
 static int kxtj9_input_open(struct input_dev *input)
@@ -339,6 +345,37 @@ static int __devinit kxtj9_setup_input_device(struct kxtj9_data *tj9)
 	return 0;
 }
 
+/* Allow users to enable and disable */
+static ssize_t kxtj9_get_enable(struct device *dev,
+				struct device_attribute *attr, char *buf)
+{
+	struct i2c_client *client = to_i2c_client(dev);
+	struct kxtj9_data *tj9 = i2c_get_clientdata(client);
+
+	return sprintf(buf, "%d\n", atomic_read(&tj9->enabled));
+}
+
+static ssize_t kxtj9_set_enable(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct i2c_client *client = to_i2c_client(dev);
+	struct kxtj9_data *tj9 = i2c_get_clientdata(client);
+	unsigned int val;
+	int error;
+
+	error = kstrtouint(buf, 10, &val);
+	if (error < 0)
+		return error;
+
+	if (val)
+		kxtj9_enable(tj9);
+	else
+		kxtj9_disable(tj9);
+
+	return count;
+}
+static DEVICE_ATTR(enable, S_IRUGO|S_IWUSR, kxtj9_get_enable, kxtj9_set_enable);
+
 /*
  * When IRQ mode is selected, we need to provide an interface to allow the user
  * to change the output data rate of the part.  For consistency, we are using
@@ -396,6 +433,7 @@ static ssize_t kxtj9_set_poll(struct device *dev, struct device_attribute *attr,
 static DEVICE_ATTR(poll, S_IRUGO|S_IWUSR, kxtj9_get_poll, kxtj9_set_poll);
 
 static struct attribute *kxtj9_attributes[] = {
+	&dev_attr_enable.attr,
 	&dev_attr_poll.attr,
 	NULL
 };
