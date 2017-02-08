@@ -49,11 +49,6 @@
 #define ODR200F		4
 #define ODR400F		5
 #define ODR800F		6
-/* INTERRUPT CONTROL REGISTER 1 BITS */
-/* Set these during probe if using irq mode */
-#define KXTJ9_IEL		(1 << 3)
-#define KXTJ9_IEA		(1 << 4)
-#define KXTJ9_IEN		(1 << 5)
 /* INPUT_ABS CONSTANTS */
 #define FUZZ			3
 #define FLAT			3
@@ -537,6 +532,8 @@ static int __devinit kxtj9_verify(struct kxtj9_data *tj9)
 		goto out;
 	}
 
+	dev_info(&tj9->client->dev, "WHO_AM_I = 0x%02x\n", retval);
+
 	retval = (retval != 0x07 && retval != 0x08) ? -EIO : 0;
 
 out:
@@ -591,7 +588,11 @@ static int __devinit kxtj9_probe(struct i2c_client *client,
 
 	if (client->irq) {
 		/* If in irq mode, populate INT_CTRL_REG1 and enable DRDY. */
-		tj9->int_ctrl |= KXTJ9_IEN | KXTJ9_IEA | KXTJ9_IEL;
+		if (tj9->pdata.int_ctrl_init)
+			tj9->int_ctrl |= tj9->pdata.int_ctrl_init;
+		else
+			tj9->int_ctrl |= KXTJ9_IEN | KXTJ9_IEA | KXTJ9_IEL;
+
 		tj9->ctrl_reg1 |= DRDYE;
 
 		err = kxtj9_setup_input_device(tj9);
@@ -599,6 +600,7 @@ static int __devinit kxtj9_probe(struct i2c_client *client,
 			goto err_pdata_exit;
 
 		err = request_threaded_irq(client->irq, NULL, kxtj9_isr,
+					   pdata->int_flags ? pdata->int_flags :
 					   IRQF_TRIGGER_RISING | IRQF_ONESHOT,
 					   "kxtj9-irq", tj9);
 		if (err) {

@@ -52,6 +52,13 @@ struct kxtj9_platform_data {
 	#define KXTJ9_G_4G		(1 << 3)
 	#define KXTJ9_G_8G		(1 << 4)
 	u8 g_range;
+	/* INTERRUPT CONTROL REGISTER 1 BITS */
+	/* Set these during probe if using irq mode */
+	#define KXTJ9_IEL		(1 << 3)
+	#define KXTJ9_IEA		(1 << 4)
+	#define KXTJ9_IEN		(1 << 5)
+	u8 int_ctrl_init;
+	u32 int_flags;
 
 	int (*init)(void);
 	void (*exit)(void);
