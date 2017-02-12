@@ -53,17 +53,12 @@
 
 #include "board-bn-hd.h"
 
-#ifdef CONFIG_INPUT_KXTJ9
-#include <linux/input/kxtj9.h>
-#endif
 #ifdef CONFIG_CHARGER_BQ2419x
 #include <linux/i2c/bq2419x.h>
 #endif
 #ifdef CONFIG_BATTERY_BQ27x00
 #include <linux/power/bq27x00_battery.h>
 #endif
-
-#define KXTJ9_GPIO_IRQ			152
 
 #ifdef CONFIG_MACH_OMAP_OVATION
 #define EXT_FET_EN				4
@@ -210,63 +205,6 @@ static struct i2c_board_info __initdata bq24196_i2c_boardinfo = {
 };
 #endif
 
-#ifdef CONFIG_INPUT_KXTJ9
-static int __init kxtj9_dev_init(void)
-{
-	int ret;
-	ret = gpio_request(KXTJ9_GPIO_IRQ, "kxtj9_irq");
-
-	if (ret)
-		return ret;
-
-	gpio_direction_input(KXTJ9_GPIO_IRQ);
-	return 0;
-}
-
-struct kxtj9_platform_data kxtj9_platform_data = {
-	.min_interval   = 1,
-	.init_interval  = 200,
-
-	.res_12bit	= RES_12BIT,
-	.g_range	= KXTJ9_G_8G,
-
-	/* Map the axes from the sensor to the device */
-	.axis_map_x	= machine_is_omap_ovation() ? 1 : 0,
-	.axis_map_y	= machine_is_omap_ovation() ? 0 : 1,
-	.axis_map_z	= 2,
-	.negate_x	= machine_is_omap_hummingbird() ? 1 : 0,
-	.negate_y	= 0,
-	.negate_z	= 0,
-
-	.int_ctrl_init	= KXTJ9_IEN,
-	.int_flags    	= IRQF_TRIGGER_FALLING | IRQF_DISABLED,
-
-#if 0 // AM: old pdata that may be implemented in the future
-	.shift_adj	= SHIFT_ADJ_2G,
-	.data_odr_init		= ODR12_5F,
-	.ctrl_reg1_init		= KXTF9_G_8G | RES_12BIT | TDTE | WUFE | TPE,
-	.tilt_timer_init	= 0x03,
-	.engine_odr_init	= OTP12_5 | OWUF50 | OTDT400,
-	.wuf_timer_init		= 0x16,
-	.wuf_thresh_init	= 0x28,
-	.tdt_timer_init		= 0x78,
-	.tdt_h_thresh_init	= 0xFF,
-	.tdt_l_thresh_init	= 0x14,
-	.tdt_tap_timer_init	= 0x53,
-	.tdt_total_timer_init	= 0x24,
-	.tdt_latency_timer_init	= 0x10,
-	.tdt_window_timer_init	= 0xA0,
-
-	.gpio			= KXTJ9_GPIO_IRQ,
-#endif
-};
-
-static struct i2c_board_info __initdata kxtj9_i2c_boardinfo = {
-	I2C_BOARD_INFO("kxtj9", 0xe),
-	.platform_data = &kxtj9_platform_data,
-};
-#endif
-
 static void __init omap_i2c_hwspinlock_init(int bus_id, int spinlock_id,
 				struct omap_i2c_bus_board_data *pdata)
 {
@@ -311,17 +249,6 @@ static int __init omap4_i2c_init(void)
 	omap_register_i2c_bus_board_data(3, &bn_i2c_3_bus_pdata);
 
 	bn_power_init();
-
-#ifdef CONFIG_INPUT_KXTJ9
-#ifdef CONFIG_MACH_OMAP_OVATION
-	if (system_rev < OVATION_EVT1A) {
-		printk(KERN_INFO "kxtj9 i2c address = 0xf \n");
-		kxtj9_i2c_boardinfo.addr = 0xf;
-	}
-#endif
-	kxtj9_i2c_boardinfo.irq = gpio_to_irq(KXTJ9_GPIO_IRQ);
-	i2c_register_board_info(1, &kxtj9_i2c_boardinfo, 1);
-#endif
 
 #ifdef CONFIG_MACH_OMAP_OVATION
 	if (system_rev >= OVATION_EVT1B) {
@@ -820,9 +747,7 @@ static void __init omap_bn_init(void)
 	bn_touch_init();
 	bn_panel_init();
 	bn_button_init();
-#ifdef CONFIG_INPUT_KXTJ9
-	kxtj9_dev_init();
-#endif
+	bn_accel_init();
 	omap_init_dmm_tiler();
 #ifdef CONFIG_ION_OMAP
 	omap4_register_ion();

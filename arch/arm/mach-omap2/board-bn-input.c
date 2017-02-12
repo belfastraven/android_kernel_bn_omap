@@ -15,8 +15,13 @@
 #include <linux/platform_device.h>
 #include <linux/gpio_keys.h>
 #include <linux/input.h>
-#include <linux/leds.h>
-#include <linux/leds_pwm.h>
+#ifdef CONFIG_INPUT_KXTJ9
+#include <linux/input/kxtj9.h>
+
+#include <asm/system_info.h>
+
+#define KXTJ9_GPIO_IRQ			152
+#endif
 
 #if defined(CONFIG_TOUCHSCREEN_FT5X06) || defined(CONFIG_TOUCHSCREEN_FT5X06_MODULE)
 #include <linux/input/ft5x06_ts.h>
@@ -73,27 +78,6 @@ static struct omap_board_data keypad_data = {
 	.pads_cnt		= ARRAY_SIZE(keypad_pads),
 };
 
-static struct gpio_led bn_gpio_leds[] = {
-	{
-		.name		= "omap4:green:debug0",
-		.gpio		= 82,
-	},
-
-};
-
-static struct gpio_led_platform_data bn_led_data = {
-	.leds			= bn_gpio_leds,
-	.num_leds		= ARRAY_SIZE(bn_gpio_leds),
-};
-
-static struct platform_device bn_leds_gpio = {
-	.name		= "leds-gpio",
-	.id			= -1,
-	.dev = {
-		.platform_data = &bn_led_data,
-	},
-};
-
 enum {
 	HOME_KEY_INDEX = 0,
 	HALL_SENSOR_INDEX,
@@ -141,7 +125,6 @@ static struct platform_device bn_gpio_keys_device = {
 };
 
 static struct platform_device *bn_devices[] __initdata = {
-	&bn_leds_gpio,
 	&bn_gpio_keys_device,
 };
 
@@ -159,6 +142,77 @@ int __init bn_button_init(void)
 
 	return 0;
 }
+
+#ifdef CONFIG_INPUT_KXTJ9
+struct kxtj9_platform_data kxtj9_platform_data = {
+	.min_interval   = 1,
+	.init_interval  = 200,
+
+	.res_12bit	= RES_12BIT,
+	.g_range	= KXTJ9_G_8G,
+
+	/* Map the axes from the sensor to the device */
+	.axis_map_x	= machine_is_omap_ovation() ? 1 : 0,
+	.axis_map_y	= machine_is_omap_ovation() ? 0 : 1,
+	.axis_map_z	= 2,
+	.negate_x	= machine_is_omap_hummingbird() ? 1 : 0,
+	.negate_y	= 0,
+	.negate_z	= 0,
+
+	.int_ctrl_init	= KXTJ9_IEN,
+	.int_flags    	= IRQF_TRIGGER_FALLING | IRQF_DISABLED,
+
+#if 0 // AM: old pdata that may be implemented in the future
+	.shift_adj	= SHIFT_ADJ_2G,
+	.data_odr_init		= ODR12_5F,
+	.ctrl_reg1_init		= KXTF9_G_8G | RES_12BIT | TDTE | WUFE | TPE,
+	.tilt_timer_init	= 0x03,
+	.engine_odr_init	= OTP12_5 | OWUF50 | OTDT400,
+	.wuf_timer_init		= 0x16,
+	.wuf_thresh_init	= 0x28,
+	.tdt_timer_init		= 0x78,
+	.tdt_h_thresh_init	= 0xFF,
+	.tdt_l_thresh_init	= 0x14,
+	.tdt_tap_timer_init	= 0x53,
+	.tdt_total_timer_init	= 0x24,
+	.tdt_latency_timer_init	= 0x10,
+	.tdt_window_timer_init	= 0xA0,
+
+	.gpio			= KXTJ9_GPIO_IRQ,
+#endif
+};
+
+static struct i2c_board_info __initdata kxtj9_i2c_boardinfo = {
+	I2C_BOARD_INFO("kxtj9", 0xe),
+	.platform_data = &kxtj9_platform_data,
+};
+
+int __init bn_accel_init(void)
+{
+	int ret;
+	ret = gpio_request(KXTJ9_GPIO_IRQ, "kxtj9_irq");
+
+	if (ret)
+		return ret;
+
+	printk(KERN_INFO "%s: Registering KXTJ9 accelerometer\n", __func__);
+
+	gpio_direction_input(KXTJ9_GPIO_IRQ);
+
+#ifdef CONFIG_MACH_OMAP_OVATION
+	if (system_rev < OVATION_EVT1A) {
+		printk(KERN_INFO "kxtj9 i2c address = 0xf \n");
+		kxtj9_i2c_boardinfo.addr = 0xf;
+	}
+#endif
+	kxtj9_i2c_boardinfo.irq = gpio_to_irq(KXTJ9_GPIO_IRQ);
+	i2c_register_board_info(1, &kxtj9_i2c_boardinfo, 1);
+
+	return 0;
+}
+#else
+inline int __init bn_accel_init(void) { return 0; }
+#endif
 
 #if defined(CONFIG_TOUCHSCREEN_FT5X06) || defined(CONFIG_TOUCHSCREEN_FT5X06_MODULE)
 static struct ft5x06_ts_platform_data ft5x06_platform_data = {
