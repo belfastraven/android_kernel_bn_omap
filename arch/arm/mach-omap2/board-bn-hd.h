@@ -38,6 +38,7 @@
 #endif
 
 int bn_button_init(void);
+int bn_accel_init(void);
 int bn_panel_init(void);
 int bn_touch_init(void);
 void bn_android_display_setup(void);
