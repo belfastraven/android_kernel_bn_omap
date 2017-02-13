@@ -137,6 +137,7 @@ struct bq27x00_device_info {
 	int charge_design_full;
 
 	unsigned long last_update;
+	struct workqueue_struct *wq;
 	struct delayed_work work;
 
 	struct power_supply	bat;
@@ -490,7 +491,7 @@ static void bq27x00_battery_poll(struct work_struct *work)
 	if (poll_interval > 0) {
 		/* The timer does not have to be accurate. */
 		set_timer_slack(&di->work.timer, poll_interval * HZ / 4);
-		schedule_delayed_work(&di->work, poll_interval * HZ);
+		queue_delayed_work(di->wq, &di->work, poll_interval * HZ);
 	}
 }
 
@@ -772,7 +773,7 @@ static void bq27x00_external_power_changed(struct power_supply *psy)
 	struct bq27x00_device_info *di = to_bq27x00_device_info(psy);
 
 	cancel_delayed_work_sync(&di->work);
-	schedule_delayed_work(&di->work, 0);
+	queue_delayed_work(di->wq, &di->work, 0);
 }
 
 static irqreturn_t bq27x00_irq_handler(int irq, void *_priv)
@@ -828,6 +829,7 @@ static int bq27x00_powersupply_init(struct bq27x00_device_info *di)
 		di->bat.get_property = bq27x00_battery_get_property;
 		di->bat.external_power_changed = bq27x00_external_power_changed;
 
+		di->wq = create_freezable_workqueue("battery_bq27x00");
 		INIT_DELAYED_WORK(&di->work, bq27x00_battery_poll);
 		mutex_init(&di->lock);
 
@@ -909,6 +911,7 @@ static void bq27x00_powersupply_unregister(struct bq27x00_device_info *di)
 	twl6030_usb_unregister_notifier(&di->nb);
 
 	cancel_delayed_work_sync(&di->work);
+	destroy_workqueue(di->wq);
 
 	power_supply_unregister(&di->bat);
 
