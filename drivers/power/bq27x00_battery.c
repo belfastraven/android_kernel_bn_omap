@@ -863,7 +863,7 @@ static int bq27x00_powersupply_init(struct bq27x00_device_info *di)
 
 		status = request_threaded_irq(di->gpio_irq, NULL,
 				bq27x00_irq_handler,
-				IRQF_TRIGGER_LOW, "bq27x00_soc_int",
+				IRQF_TRIGGER_LOW | IRQF_ONESHOT, "bq27x00_soc_int",
 				di);
 		if (status) {
 			dev_err(di->dev, "request irq failed for bq27x00_soc_int");
