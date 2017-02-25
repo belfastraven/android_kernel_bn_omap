@@ -184,7 +184,7 @@ static struct i2c_board_info __initdata bq27520_i2c_boardinfo = {
 	I2C_BOARD_INFO("bq27500", 0x55),
 	//.flags = I2C_CLIENT_WAKE,
 	.irq = 176,
-	.platform_data = &bq27520_platform_data,
+	//.platform_data = &bq27520_platform_data,
 };
 #endif
 
