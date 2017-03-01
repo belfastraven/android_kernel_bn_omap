@@ -122,12 +122,16 @@ struct twl6030_usb {
 	enum omap_musb_vbus_id_status prev_status;
 
 	struct wake_lock	charger_det_lock;
+	struct work_struct	usb_work;
+	struct work_struct	otg_work;
 };
 
 static BLOCKING_NOTIFIER_HEAD(notifier_list);
 
 #define	comparator_to_twl(x) container_of((x), struct twl6030_usb, comparator)
 /*-------------------------------------------------------------------------*/
+
+int twl6i030_force_usb_id = 0;
 
 int twl6030_usb_register_notifier(struct notifier_block *nb)
 {
@@ -249,6 +253,42 @@ static ssize_t twl6030_usb_vbus_show(struct device *dev,
 }
 static DEVICE_ATTR(vbus, 0444, twl6030_usb_vbus_show, NULL);
 
+static ssize_t twl6030_usb_id_show(struct device *dev,
+			struct device_attribute *attr, char *buf)
+{
+	int ret = -EINVAL;
+
+	ret = snprintf(buf, PAGE_SIZE, "%sable\n",
+		       twl6030_force_usb_id?"en":"dis");
+
+	return ret;
+}
+
+static ssize_t twl6030_usb_id_store(struct device *dev,
+			struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct twl6030_usb *twl = dev_get_drvdata(dev);
+
+	if (!strncmp(buf, "enable", 6)) {
+		twl6030_force_usb_id = 1;
+	} else if (!strncmp(buf, "disable", 7)) {
+		twl6030_force_usb_id = 0;
+	} else {
+		return -EINVAL;
+	}
+
+	schedule_work(&twl->otg_work);
+
+	return count;
+}
+
+static DEVICE_ATTR(usb_id, 0644, twl6030_usb_id_show, twl6030_usb_id_store);
+
+
+static int twl6030_status = USB_EVENT_NONE;
+inline int twl6030_usbotg_get_status() { return twl6030_status; }
+EXPORT_SYMBOL(twl6030_usbotg_get_status);
+
 static irqreturn_t twl6030_usb_irq(int irq, void *_twl)
 {
 	struct twl6030_usb *twl = _twl;
@@ -258,10 +298,14 @@ static irqreturn_t twl6030_usb_irq(int irq, void *_twl)
 	int event;
 
 	hw_state = twl6030_readb(twl, TWL6030_MODULE_ID0, STS_HW_CONDITIONS);
+	if (twl6030_force_usb_id)
+		hw_state |= STS_USB_ID;
 
 	vbus_state = twl6030_readb(twl, TWL_MODULE_MAIN_CHARGE,
 						CONTROLLER_STAT1);
-	if (!(hw_state & STS_USB_ID)) {
+	vbus_state = vbus_state & VBUS_DET;
+
+		if (!(hw_state & STS_USB_ID)) {
 		if (vbus_state & VBUS_DET) {
 			if (twl->prev_status == OMAP_MUSB_VBUS_VALID)
 				return IRQ_HANDLED;
@@ -270,12 +314,22 @@ static irqreturn_t twl6030_usb_irq(int irq, void *_twl)
 			regulator_enable(twl->usb3v3);
 			charger_type = omap_usb2_charger_detect(
 					&twl->comparator);
-			if (charger_type == POWER_SUPPLY_TYPE_USB_DCP)
+			if (charger_type == POWER_SUPPLY_TYPE_USB_DCP) {
+				regulator_disable(twl->usb3v3);
+				status = OMAP_MUSB_VBUS_VALID;
 				event = USB_EVENT_CHARGER;
-			else
+			} else if ((charger_type == POWER_SUPPLY_TYPE_USB_CDP)
+					|| (charger_type == POWER_SUPPLY_TYPE_USB)) {
+				status = OMAP_MUSB_VBUS_VALID;
 				event = USB_EVENT_VBUS;
+			} else {
+				regulator_disable(twl->usb3v3);
+				charger_type = POWER_SUPPLY_TYPE_UNKNOWN;
+				status = OMAP_MUSB_ID_FLOAT;
+				event = USB_EVENT_NO_CONTACT;
+			}
 			twl->asleep = 1;
-			status = OMAP_MUSB_VBUS_VALID;
+			twl6030_status = event;
 			omap_musb_mailbox(status);
 			blocking_notifier_call_chain(&notifier_list,
 						     event, &charger_type);
@@ -286,6 +340,7 @@ static irqreturn_t twl6030_usb_irq(int irq, void *_twl)
 					return IRQ_HANDLED;
 				status = OMAP_MUSB_VBUS_OFF;
 				event = USB_EVENT_NONE;
+				twl6030_status = event;
 				omap_musb_mailbox(status);
 				blocking_notifier_call_chain(&notifier_list,
 							     event,
@@ -311,6 +366,12 @@ static irqreturn_t twl6030_usbotg_irq(int irq, void *_twl)
 	u8 hw_state;
 
 	hw_state = twl6030_readb(twl, TWL6030_MODULE_ID0, STS_HW_CONDITIONS);
+	if (twl6030_force_usb_id)
+		hw_state |= STS_USB_ID;
+
+	vbus_state = twl6030_readb(twl, TWL_MODULE_MAIN_CHARGE,
+				   CONTROLLER_STAT1);
+	vbus_state = vbus_state & VBUS_DET;
 
 	if (hw_state & STS_USB_ID) {
 		if (twl->prev_status == OMAP_MUSB_ID_GROUND)
@@ -322,6 +383,7 @@ static irqreturn_t twl6030_usbotg_irq(int irq, void *_twl)
 		twl6030_writeb(twl, TWL_MODULE_USB, 0x1, USB_ID_INT_EN_HI_CLR);
 		twl6030_writeb(twl, TWL_MODULE_USB, 0x10, USB_ID_INT_EN_HI_SET);
 		omap_musb_mailbox(OMAP_MUSB_ID_GROUND);
+		twl6030_status = USB_EVENT_ID;
 		/*
 		 * NOTE:
 		 * This code is needed because if ID pin
@@ -463,12 +525,15 @@ static int __devinit twl6030_usb_probe(struct platform_device *pdev)
 	if (device_create_file(&pdev->dev, &dev_attr_vbus))
 		dev_warn(&pdev->dev, "could not create sysfs file\n");
 
+	if (device_create_file(&pdev->dev, &dev_attr_usb_id))
+		dev_warn(&pdev->dev, "could not create sysfs file\n");
+
 	INIT_WORK(&twl->set_vbus_work, otg_set_vbus_work);
 	wake_lock_init(&twl->charger_det_lock,
 		       WAKE_LOCK_SUSPEND, "charger_detector");
 	twl->irq_enabled = true;
 	status = request_threaded_irq(twl->irq1, NULL, twl6030_usbotg_irq,
-			IRQF_TRIGGER_FALLING | IRQF_TRIGGER_RISING | IRQF_ONESHOT,
+			IRQF_TRIGGER_FALLING | IRQF_TRIGGER_RISING,
 			"twl6030_usb", twl);
 	if (status < 0) {
 		dev_err(&pdev->dev, "can't get IRQ %d, err %d\n",
@@ -480,7 +545,7 @@ static int __devinit twl6030_usb_probe(struct platform_device *pdev)
 	}
 
 	status = request_threaded_irq(twl->irq2, NULL, twl6030_usb_irq,
-			IRQF_TRIGGER_FALLING | IRQF_TRIGGER_RISING | IRQF_ONESHOT,
+			IRQF_TRIGGER_FALLING | IRQF_TRIGGER_RISING,
 			"twl6030_usb", twl);
 	if (status < 0) {
 		dev_err(&pdev->dev, "can't get IRQ %d, err %d\n",
